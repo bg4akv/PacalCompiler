@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<project name="" default="dist" basedir=".">
+
+	<description>
+		simple example build file
+	</description>
+
+	<!-- set global properties for this build -->
+	<property name="jar.file" value="Compiler"/>
+	<property name="src.dir" location="src"/>
+	<property name="build.dir" location="build"/>
+	<property name="dist.dir" location="dist"/>
+	<property name="meta-inf.dir" location="META-INF"/>
+	<property name="manifest.file" value="MANIFEST.MF"/>
+	<property name="manifest.path" value="${meta-inf.dir}/${manifest.file}"/>
+
+	<target name="init">
+		<!-- Create the time stamp -->
+		<tstamp/>
+		<!-- Create the build directory structure used by compile -->
+		<mkdir dir="${build.dir}"/>
+		<mkdir dir="${meta-inf.dir}"/>
+	</target>
+
+	<target name="compile" depends="init" description="compile the source">
+		<!-- Compile the java code from ${src.dir} into ${build.dir} -->
+		<javac srcdir="${src.dir}" destdir="${build.dir}" includeantruntime="on"/>
+	</target>
+
+	<target name="manifest" depends="init" description="generate the manifest">
+		<mkdir dir="${meta-inf.dir}"/>
+		<manifest file="${manifest.path}">
+			<attribute name="Main-Class" value="main.Main"/>
+			<attribute name="Class-Path" value="lib"/>
+		</manifest>
+	</target>
+
+	<target name="dist" depends="compile,manifest" description="generate the distribution" >
+		<!-- Create the distribution directory -->
+		<mkdir dir="${dist.dir}/lib"/>
+		<jar jarfile="${dist.dir}/${jar.file}.jar" basedir="${build.dir}" manifest="${manifest.path}"/>
+	</target>
+
+	<target name="clean" description="clean up" >
+		<!-- Delete the ${build} and ${dist} directory trees -->
+		<delete dir="${build.dir}"/>
+		<delete dir="${dist.dir}"/>
+	</target>
+
+</project>
