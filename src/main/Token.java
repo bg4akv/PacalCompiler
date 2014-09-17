@@ -235,8 +235,6 @@ public class Token {
 
 	public String dump()
 	{
-		String.format("  \n", location.toString(), tokenTypeDescription(), name, getSymbolPrecedence());
-		
 		return location.toString() + "\t" + tokenTypeDescription()
 				+ "\t" + name + "\t\t" + getSymbolPrecedence() + "\n";
 	}

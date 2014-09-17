@@ -16,12 +16,13 @@ import main.Token.TokenValue;
 
 public class Scanner {
 	private enum State {
-		NONE,
+		START,
 		END_OF_FILE,
 		IDENTIFIER,
 		NUMBER,
 		STRING,
-		OPERATION
+		OPERATION,
+		TERMINAL
 	};
 
 	private enum NumberState {
@@ -42,7 +43,6 @@ public class Scanner {
 
 	private final Dictionary dictionary = new Dictionary();
 	private Token token;
-	private State state;
 
 	private String buffer = "";
 	private char currentChar = 0;
@@ -56,7 +56,6 @@ public class Scanner {
 		column = 0;
 		currentChar = 0;
 		errorFlag = false;
-		state = State.NONE;
 
 		open(fileName);
 		if (fileReader == null) {
@@ -65,7 +64,7 @@ public class Scanner {
 		}
 	}
 
-	public void open(String fileName)
+	private void open(String fileName)
 	{
 		if (fileName == null || fileName.length() == 0) {
 			return;
@@ -73,7 +72,7 @@ public class Scanner {
 		fileReader = openFile(fileName);
 	}
 
-	public void close()
+	private void close()
 	{
 		closeFile(fileReader);
 		eof = false;
@@ -195,7 +194,6 @@ public class Scanner {
 	{
 		Token token = new Token(tt, tv, loc, buffer, symbolPrecedence);
 		buffer = "";
-		state = State.NONE;
 
 		return token;
 	}
@@ -204,7 +202,6 @@ public class Scanner {
 	{
 		Token token = new Token(tt, tv, loc, intValue, buffer);
 		buffer = "";
-		state = State.NONE;
 
 		return token;
 	}
@@ -213,7 +210,6 @@ public class Scanner {
 	{
 		Token token = new Token(tt, tv, loc, realValue, buffer);
 		buffer = "";
-		state = State.NONE;
 
 		return token;
 	}
@@ -299,6 +295,7 @@ public class Scanner {
 			// eat $ and update currentChar_
 			getNextChar();
 		}
+
 		NumberState numberState = NumberState.INTERGER;
 		do {
 			switch (numberState) {
@@ -496,57 +493,64 @@ public class Scanner {
 
 	public Token getNextToken()
 	{
-		boolean matched = false;
+		token = null;
+		State state = State.START;
 
-		do {
-			if (state != State.NONE) {
-				matched = true;
-			}
-
+		while (state != State.TERMINAL) {
 			switch (state) {
-			case NONE:
+			case START:
 				getNextChar();
-				break;
-			case END_OF_FILE:
-				token = handleEOFState();
-				break;
-			case IDENTIFIER:
-				token = handleIdentifierState();
-				break;
-			case NUMBER:
-				token = handleNumberState();
-				break;
-			case STRING:
-				token = handleStringState();
-				break;
-			case OPERATION:
-				token = handleOperationState();
-				break;
-			default:
-				errorToken("Match token state error.");
-				errorFlag = true;
-				break;
-			}
 
-			if (state == State.NONE) {
 				preprocess();
 				if (eof) {
 					state = State.END_OF_FILE;
-				} else {
-					if (Character.isLetter(currentChar)) {
-						state = State.IDENTIFIER;
-					} else if (Character.isDigit(currentChar)
-							|| (currentChar == '$' && isXDigit(peekChar()))) { // if it is digit or xdigit
-						state = State.NUMBER;
-					} else if (currentChar == '\'') {
-						state = State.STRING;
-					} else {
-						state = State.OPERATION;
-					}
-				}
-			}
-		} while (!matched);
+		        	} else {
+		        		if (Character.isLetter(currentChar)) {
+		        			state = State.IDENTIFIER;
+		        		} else if (Character.isDigit(currentChar)
+		        				|| (currentChar == '$' && isXDigit(peekChar()))) { // if it is digit or xdigit
+		        			state = State.NUMBER;
+		        		} else if (currentChar == '\'') {
+		        			state = State.STRING;
+		        		} else {
+		        			state = State.OPERATION;
+		        		}
+		        	}
+				break;
 
+			case END_OF_FILE:
+				token = handleEOFState();
+				state = State.TERMINAL;
+				break;
+
+			case IDENTIFIER:
+				token = handleIdentifierState();
+				state = State.TERMINAL;
+				break;
+
+			case NUMBER:
+				token = handleNumberState();
+				state = State.TERMINAL;
+				break;
+
+			case STRING:
+				token = handleStringState();
+				state = State.TERMINAL;
+				break;
+
+			case OPERATION:
+				token = handleOperationState();
+				state = State.TERMINAL;
+				break;
+
+			default:
+				errorToken("Match token state error.");
+				errorFlag = true;
+				state = State.TERMINAL;
+				break;
+			}
+		}
+		
 		return token;
 	}
 
