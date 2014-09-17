@@ -42,7 +42,6 @@ public class Scanner {
 
 	private final Dictionary dictionary = new Dictionary();
 	private Token token;
-	private TokenLocation loc;
 	private State state;
 
 	private String buffer = "";
@@ -192,25 +191,31 @@ public class Scanner {
 		buffer = buffer.substring(0, buffer.length() - 1);
 	}
 
-	private void makeToken(TokenType tt, TokenValue tv, TokenLocation loc, String name, int symbolPrecedence)
+	private Token makeToken(TokenType tt, TokenValue tv, TokenLocation loc, String name, int symbolPrecedence)
 	{
-		token = new Token(tt, tv, loc, buffer, symbolPrecedence);
+		Token token = new Token(tt, tv, loc, buffer, symbolPrecedence);
 		buffer = "";
 		state = State.NONE;
+
+		return token;
 	}
 
-	private void makeToken(TokenType tt, TokenValue tv, TokenLocation loc, long intValue, String name)
+	private Token makeToken(TokenType tt, TokenValue tv, TokenLocation loc, long intValue, String name)
 	{
-		token = new Token(tt, tv, loc, intValue, buffer);
+		Token token = new Token(tt, tv, loc, intValue, buffer);
 		buffer = "";
 		state = State.NONE;
+
+		return token;
 	}
 
-	private void makeToken(TokenType tt, TokenValue tv, TokenLocation loc, double realValue, String name)
+	private Token makeToken(TokenType tt, TokenValue tv, TokenLocation loc, double realValue, String name)
 	{
-		token = new Token(tt, tv, loc, realValue, buffer);
+		Token token = new Token(tt, tv, loc, realValue, buffer);
 		buffer = "";
 		state = State.NONE;
+
+		return token;
 	}
 
 	private void preprocess()
@@ -227,7 +232,7 @@ public class Scanner {
 
 	private void handleLineComment()
 	{
-		loc = getTokenLocation();
+		TokenLocation loc = new TokenLocation(fileName, line, column);
 		if (currentChar == '(' && peekChar() == '*') {
 			// eat *
 			getNextChar();
@@ -238,13 +243,12 @@ public class Scanner {
 				getNextChar();
 				// accident EOF
 				if (eof) {
-					errorToken(getTokenLocation().toString() + "end of file happended in comment, *) is expected!, but find " + currentChar);
+					errorToken(new TokenLocation(fileName, line, column).toString() + "end of file happended in comment, *) is expected!, but find " + currentChar);
 					errorFlag = true;
 					break;
 				}
 			}
-			if (!eof)
-			{
+			if (!eof) {
 				// eat *
 				getNextChar();
 				// eat ) and update currentChar_
@@ -255,42 +259,41 @@ public class Scanner {
 
 	private void handleBlockComment()
 	{
-		loc = getTokenLocation();
-		if (currentChar == '{')
-		{
+		TokenLocation loc = new TokenLocation(fileName, line, column);
+		if (currentChar == '{') {
 			do
 			{
 				getNextChar();
-				if (eof)
-				{
-					errorToken(getTokenLocation().toString() + "end of file happended in comment, } is expected!, but find " + currentChar);
+				if (eof) {
+					errorToken(new TokenLocation(fileName, line, column).toString() + "end of file happended in comment, } is expected!, but find " + currentChar);
 					errorFlag = true;
 					break;
 				}
 			} while (currentChar != '}');
-			if (!eof)
-			{
+			if (!eof) {
 				// eat } and update currentChar_
 				getNextChar();
 			}
 		}
 	}
 
-	private void handleEOFState()
+	private Token handleEOFState()
 	{
-		loc = getTokenLocation();
-		makeToken(TokenType.END_OF_FILE, TokenValue.UNRESERVED, loc, "END_OF_FILE", -1);
+		TokenLocation loc = new TokenLocation(fileName, line, column);
+		Token token = makeToken(TokenType.END_OF_FILE, TokenValue.UNRESERVED, loc, "END_OF_FILE", -1);
 		// close the file
 		close();
+		
+		return token;
 	}
 
-	private void handleNumberState()
+	private Token handleNumberState()
 	{
 		boolean matched = false;
 		boolean isFloat = false;
 		int numberBase = 10;
 
-		loc = getTokenLocation();
+		TokenLocation loc = new TokenLocation(fileName, line, column);
 		if (currentChar == '$') {
 			numberBase = 16;
 			// eat $ and update currentChar_
@@ -331,16 +334,17 @@ public class Scanner {
 				numberState = NumberState.DONE;
 			}
 		} while (numberState != NumberState.DONE);
+
 		if (isFloat) {
-			makeToken(TokenType.REAL, TokenValue.UNRESERVED, loc, new BigDecimal(buffer).doubleValue(), buffer);
+			return makeToken(TokenType.REAL, TokenValue.UNRESERVED, loc, new BigDecimal(buffer).doubleValue(), buffer);
 		} else {
-			makeToken(TokenType.INTEGER, TokenValue.UNRESERVED, loc, new BigDecimal(buffer).longValue(), buffer);
+			return makeToken(TokenType.INTEGER, TokenValue.UNRESERVED, loc, new BigDecimal(buffer).longValue(), buffer);
 		}
 	}
 
-	private void handleStringState()
+	private Token handleStringState()
 	{
-		loc = getTokenLocation();
+		TokenLocation loc = new TokenLocation(fileName, line, column);
 		// eat ' and NOT update currentChar_
 		// because we don't want ' (single quote).
 		getNextChar();
@@ -363,15 +367,15 @@ public class Scanner {
 		if (buffer.length() == 1) {
 			// makeToken(TokenType.CHAR, TokenValue.UNRESERVED, loc_,
 			//    static_cast<long>(buffer_.at(0)), buffer_);
-			makeToken(TokenType.CHAR, TokenValue.UNRESERVED, loc, buffer, -1);
+			return makeToken(TokenType.CHAR, TokenValue.UNRESERVED, loc, buffer, -1);
 		} else {
-			makeToken(TokenType.STRING_LITERAL, TokenValue.UNRESERVED, loc, buffer, -1);
+			return makeToken(TokenType.STRING_LITERAL, TokenValue.UNRESERVED, loc, buffer, -1);
 		}
 	}
 
-	private void handleIdentifierState()
+	private Token handleIdentifierState()
 	{
-		loc = getTokenLocation();
+		TokenLocation loc = new TokenLocation(fileName, line, column);
 		// add first char
 		addToBuffer(currentChar);
 		getNextChar();
@@ -386,29 +390,31 @@ public class Scanner {
 		buffer = buffer.toLowerCase();
 		// use dictionary to judge it is keyword or not
 		Tuple tokenMeta = dictionary.lookup(buffer);
-		makeToken(tokenMeta.tokenType, tokenMeta.tokenValue, loc, buffer, tokenMeta.precedence);
+		return makeToken(tokenMeta.tokenType, tokenMeta.tokenValue, loc, buffer, tokenMeta.precedence);
 	}
 
-	private void handleOperationState()
+	private Token handleOperationState()
 	{
-		loc = getTokenLocation();
-		boolean matched = false;
+		TokenLocation loc = new TokenLocation(fileName, line, column);
+		//boolean matched = false;
 
 		// add current symbol char
 		addToBuffer(currentChar);
 		// add next one symbol char
 		addToBuffer(peekChar());
 		if (dictionary.haveToken(buffer)) {
-			matched = true;
+			//matched = true;
 			getNextChar();
 		} else {
 			reduceBuffer();
 		}
 		Tuple tokenMeta = dictionary.lookup(buffer);
 		// token type, token value, name, symbol precedence
-		makeToken(tokenMeta.tokenType, tokenMeta.tokenValue, loc, buffer, tokenMeta.precedence);
+		Token token = makeToken(tokenMeta.tokenType, tokenMeta.tokenValue, loc, buffer, tokenMeta.precedence);
 		// update currentChar_
 		getNextChar();
+		
+		return token;
 	}
 
 	private void handleDigit()
@@ -440,7 +446,7 @@ public class Scanner {
 		}
 
 		if (!readFlag) {
-			errorToken(getTokenLocation().toString() + "Hexadecimal number format error.");
+			errorToken(new TokenLocation(fileName, line, column).toString() + "Hexadecimal number format error.");
 			errorFlag = true;
 		}
 	}
@@ -452,7 +458,7 @@ public class Scanner {
 		// our compiler has one big difference compared with
 		// commercial compiler, that is about error conditions.
 		if (peekChar() == '.') {
-			errorToken(getTokenLocation().toString() + "Fraction number can not have dot after dot");
+			errorToken(new TokenLocation(fileName, line, column).toString() + "Fraction number can not have dot after dot");
 			errorFlag = true;
 		}
 
@@ -483,7 +489,7 @@ public class Scanner {
 		}
 	}
 
-	public Token getToken()
+	public Token getCurrentToken()
 	{
 		return token;
 	}
@@ -502,19 +508,19 @@ public class Scanner {
 				getNextChar();
 				break;
 			case END_OF_FILE:
-				handleEOFState();
+				token = handleEOFState();
 				break;
 			case IDENTIFIER:
-				handleIdentifierState();
+				token = handleIdentifierState();
 				break;
 			case NUMBER:
-				handleNumberState();
+				token = handleNumberState();
 				break;
 			case STRING:
-				handleStringState();
+				token = handleStringState();
 				break;
 			case OPERATION:
-				handleOperationState();
+				token = handleOperationState();
 				break;
 			default:
 				errorToken("Match token state error.");
@@ -547,11 +553,6 @@ public class Scanner {
 	public boolean getErrorFlag()
 	{
 		return errorFlag;
-	}
-
-	private TokenLocation getTokenLocation()
-	{
-		return new TokenLocation(fileName, line, column);
 	}
 
 	public void errorToken(String msg)

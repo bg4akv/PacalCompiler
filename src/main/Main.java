@@ -12,12 +12,15 @@ public class Main {
 			return;
 		}
 
-		scanner.getNextToken();
-		while (scanner.getToken().getTokenType() != TokenType.END_OF_FILE) {
-			System.out.println(scanner.getToken().dump());
-			scanner.getNextToken();
-		}
-
-		System.out.println("program exit");
+		Token token = null;
+		do {
+			token = scanner.getNextToken();
+			if (token != null) {
+				System.out.println(token.dump());
+			}
+		} while (token != null
+			&& token.getTokenType() != TokenType.END_OF_FILE);
+		
+		System.out.println("--- program exit ---");
 	}
 }

@@ -2,7 +2,7 @@ package main;
 
 public class Token {
 	public enum TokenType {
-		// see pascal standard 6.4
+		// see Pascal standard 6.4
 		// in fact, we can put these 5 types to one category
 		// named constant. but I want to make it more cleaner.
 		INTEGER, // such as 3, 4 and so on

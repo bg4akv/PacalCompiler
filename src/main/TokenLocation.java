@@ -8,7 +8,7 @@ public class TokenLocation {
 	public TokenLocation()
 	{
 		fileName = "";
-		line = 1;
+		line = 0;
 		column = 0;
 	}
 
@@ -19,11 +19,9 @@ public class TokenLocation {
 		this.column = column;
 	}
 
-	// this method is very similar with toString method in Java.
 	@Override
 	public String toString()
 	{
-		//return fileName + ":" + String.valueOf(line) + ":" + String.valueOf(column) + ":";
-		return String.format("%s", fileName);
+		return fileName + ":" + String.valueOf(line) + ":" + String.valueOf(column) + ":";
 	}
 }
