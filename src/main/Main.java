@@ -17,7 +17,7 @@ public class Main {
 			System.out.println(scanner.getToken().dump());
 			scanner.getNextToken();
 		}
-	
+
 		System.out.println("program exit");
 	}
 }
