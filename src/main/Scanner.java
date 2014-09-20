@@ -193,7 +193,7 @@ public class Scanner {
 
 		return token;
 	}
-
+/*
 	private void handleLineComment()
 	{
 		TokenLocation loc = new TokenLocation(fileName, line, column);
@@ -245,7 +245,7 @@ public class Scanner {
 		
 		return null;
 	}
-
+*/
 	private Token handleComment()
 	{
 		TokenLocation loc = new TokenLocation(fileName, line, column);
@@ -292,35 +292,6 @@ public class Scanner {
 				getNextChar();
 				addToBuffer(currentChar);
 			}
-		}
-
-		return makeToken(TokenType.COMMENT, TokenValue.UNRESERVED, loc, buffer, -1);
-	}
-	
-	private Token handleComment2()
-	{
-		TokenLocation loc = new TokenLocation(fileName, line, column);
-
-		if (currentChar != '(' || peekChar() != '*') {
-			return null;
-		}
-
-		do {
-			// eat (* and update currentChar_
-			getNextChar();
-			getNextChar();
-
-			if (eof) {
-				errorToken(new TokenLocation(fileName, line, column).toString() + "end of file happended in comment, } is expected!, but find " + currentChar);
-				errorFlag = true;
-				break;
-			}
-		} while (currentChar != '*' || peekChar() != ')');
-
-		if (!eof) {
-			// eat *) and update currentChar_
-			getNextChar();
-			getNextChar();
 		}
 
 		return makeToken(TokenType.COMMENT, TokenValue.UNRESERVED, loc, buffer, -1);
@@ -561,25 +532,8 @@ public class Scanner {
 		while (state != State.TERMINAL) {
 			switch (state) {
 			case START:
-				
-				/*
-				getNextChar();
-				do {
-					while (isSpace(currentChar)) {
-						getNextChar();
-					}
-
-					handleLineComment();
-					handleBlockComment();
-				} while (isSpace(currentChar));
-				*/
-				
-				
 				skipSpace();
-				
-				
-				
-				
+
 				if (eof) {
 					state = State.END_OF_FILE;
 		        	} else {
