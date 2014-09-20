@@ -15,6 +15,7 @@ public class Token {
 		OPERATORS, // such as  + - * /
 		DELIMITER, // such as ,
 		END_OF_FILE, // end of file
+		COMMENT,
 		UNKNOWN
 	};
 
@@ -219,6 +220,9 @@ public class Token {
 			break;
 		case DELIMITER:
 			buffer = "delimiter:      ";
+			break;
+		case COMMENT:
+			buffer = "comment:      ";
 			break;
 		case END_OF_FILE:
 			buffer = "eof             ";

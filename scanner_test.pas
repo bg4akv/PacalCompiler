@@ -36,6 +36,10 @@ writeln
 
 (*You can not see me*)
 
+{You can not see me
+You can not see me
+You can not see me}
+
 AND;
 and
 

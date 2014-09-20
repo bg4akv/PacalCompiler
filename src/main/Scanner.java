@@ -1,13 +1,12 @@
 package main;
 
-import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.PushbackReader;
 import java.io.UnsupportedEncodingException;
 import java.math.BigDecimal;
-import java.nio.channels.FileChannel;
 
 import main.Dictionary.Tuple;
 import main.Token.TokenType;
@@ -17,6 +16,7 @@ import main.Token.TokenValue;
 public class Scanner {
 	private enum State {
 		START,
+		COMMENT,
 		END_OF_FILE,
 		IDENTIFIER,
 		NUMBER,
@@ -32,9 +32,8 @@ public class Scanner {
 		DONE
 	};
 
-	private FileInputStream fileInput = null;
-	private FileChannel fileChannel = null;
 	private InputStreamReader fileReader = null;
+	private PushbackReader pushbackReader = null;
 	private boolean eof = false;
 
 	private final String fileName;
@@ -57,85 +56,64 @@ public class Scanner {
 		currentChar = 0;
 		errorFlag = false;
 
-		open(fileName);
+		openFile(fileName);
 		if (fileReader == null) {
 			errorToken("When trying to open file " + fileName + ", occurred error.");
 			errorFlag = true;
 		}
 	}
 
-	private void open(String fileName)
+	private void openFile(String fileName)
 	{
 		if (fileName == null || fileName.length() == 0) {
 			return;
 		}
-		fileReader = openFile(fileName);
-	}
-
-	private void close()
-	{
-		closeFile(fileReader);
-		eof = false;
-	}
-
-	private InputStreamReader openFile(String fileName)
-	{
-		File file = new File(fileName);
-		if (file.exists() == false) {
-			System.out.println("\"" + fileName + "\"" + " not found!");
-			return null;
-		}
 
 		try {
-			fileInput = new FileInputStream(file);
-			fileChannel = fileInput.getChannel();
-			return new InputStreamReader(fileInput, "UTF-8");
+			FileInputStream fileInputStream = new FileInputStream(fileName);
+			fileReader = new InputStreamReader(fileInputStream, "UTF-8");
+			pushbackReader = new PushbackReader(fileReader);
 		} catch (FileNotFoundException e) {
 			e.printStackTrace();
-			return null;
 		} catch (UnsupportedEncodingException e) {
 			e.printStackTrace();
-			return null;
 		}
 	}
 
-	private void closeFile(InputStreamReader fileReader)
+	private void closeFile()
 	{
-		if (fileReader == null) {
-			return;
-		}
-
 		try {
 			fileReader.close();
+			pushbackReader.close();
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
+
+		fileReader = null;
+		pushbackReader = null;
+		eof = false;
 	}
 
-	private boolean readChar(InputStreamReader fileReader, char[] ch, int len, boolean peek)
+	private boolean readChar(char[] ch, int len, boolean peek)
 	{
 		if (fileReader == null || eof) {
 			return false;
 		}
 
 		try {
-			long pos = 0;
-			if (peek) {
-				pos = fileChannel.position();
-			}
-			int n = fileReader.read(ch, 0, len);
+			int n = pushbackReader.read(ch, 0, len);
 			if (n == -1) {
 				eof = true;
 				return false;
 			}
 			if (peek) {
-				fileChannel.position(pos);
+				pushbackReader.unread(ch, 0, n);
 			}
 		} catch (IOException e) {
 			e.printStackTrace();
 			return false;
 		}
-		
+
 		//System.out.print(new String(ch));
 		return true;
 	}
@@ -153,12 +131,12 @@ public class Scanner {
 			|| (ch == '\t') || (ch == '\f') || (ch == '\u000b');
 	}
 
-	private void getNextChar()
+	private char getNextChar()
 	{
 		char[] ch = new char[] {0};
-		if (readChar(fileReader, ch, 1, false) == false) {
+		if (readChar(ch, 1, false) == false) {
 			currentChar = 0;
-			return;
+			return 0;
 		}
 
 		currentChar = ch[0];
@@ -168,12 +146,14 @@ public class Scanner {
 		} else {
 			column++;
 		}
+		
+		return ch[0];
 	}
 
 	private char peekChar()
 	{
 		char[] ch = new char[] {0};
-		if (readChar(fileReader, ch, 1, true) == false) {
+		if (readChar(ch, 1, true) == false) {
 			return 0;
 		}
 
@@ -214,18 +194,6 @@ public class Scanner {
 		return token;
 	}
 
-	private void preprocess()
-	{
-		do {
-			while (isSpace(currentChar)) {
-				getNextChar();
-			}
-
-			handleLineComment();
-			handleBlockComment();
-		} while (isSpace(currentChar));
-	}
-
 	private void handleLineComment()
 	{
 		TokenLocation loc = new TokenLocation(fileName, line, column);
@@ -253,7 +221,7 @@ public class Scanner {
 		}
 	}
 
-	private void handleBlockComment()
+	private Token handleBlockComment()
 	{
 		TokenLocation loc = new TokenLocation(fileName, line, column);
 		if (currentChar == '{') {
@@ -266,11 +234,96 @@ public class Scanner {
 					break;
 				}
 			} while (currentChar != '}');
+
 			if (!eof) {
 				// eat } and update currentChar_
 				getNextChar();
 			}
+
+			return makeToken(TokenType.COMMENT, TokenValue.UNRESERVED, loc, buffer, -1);
 		}
+		
+		return null;
+	}
+
+	private Token handleComment()
+	{
+		TokenLocation loc = new TokenLocation(fileName, line, column);
+
+		int type;
+
+		if (currentChar == '{') {
+			type = 1;
+		} else if (currentChar == '(' && peekChar() == '*') {
+			type = 2;
+		} else {
+			return null;
+		}
+
+		addToBuffer(currentChar);
+		if (type == 2) {
+			getNextChar();
+			addToBuffer(currentChar);
+		}
+
+		while (true) {
+			getNextChar();
+			addToBuffer(currentChar);
+
+			if (eof) {
+				errorToken(new TokenLocation(fileName, line, column).toString() + "end of file happended in comment, } is expected!, but find " + currentChar);
+				errorFlag = true;
+				break;
+			}
+			
+			if (type == 1 && currentChar == '}') {
+				break;
+			} else if (type == 2 && currentChar == '*' && peekChar() == ')') {
+				break;
+			}
+		}
+
+		if (!eof) {
+			// eat } and update currentChar_
+			getNextChar();
+			addToBuffer(currentChar);
+
+			if (type == 2) {
+				getNextChar();
+				addToBuffer(currentChar);
+			}
+		}
+
+		return makeToken(TokenType.COMMENT, TokenValue.UNRESERVED, loc, buffer, -1);
+	}
+	
+	private Token handleComment2()
+	{
+		TokenLocation loc = new TokenLocation(fileName, line, column);
+
+		if (currentChar != '(' || peekChar() != '*') {
+			return null;
+		}
+
+		do {
+			// eat (* and update currentChar_
+			getNextChar();
+			getNextChar();
+
+			if (eof) {
+				errorToken(new TokenLocation(fileName, line, column).toString() + "end of file happended in comment, } is expected!, but find " + currentChar);
+				errorFlag = true;
+				break;
+			}
+		} while (currentChar != '*' || peekChar() != ')');
+
+		if (!eof) {
+			// eat *) and update currentChar_
+			getNextChar();
+			getNextChar();
+		}
+
+		return makeToken(TokenType.COMMENT, TokenValue.UNRESERVED, loc, buffer, -1);
 	}
 
 	private Token handleEOFState()
@@ -278,7 +331,7 @@ public class Scanner {
 		TokenLocation loc = new TokenLocation(fileName, line, column);
 		Token token = makeToken(TokenType.END_OF_FILE, TokenValue.UNRESERVED, loc, "END_OF_FILE", -1);
 		// close the file
-		close();
+		closeFile();
 		
 		return token;
 	}
@@ -335,7 +388,7 @@ public class Scanner {
 		if (isFloat) {
 			return makeToken(TokenType.REAL, TokenValue.UNRESERVED, loc, new BigDecimal(buffer).doubleValue(), buffer);
 		} else {
-			return makeToken(TokenType.INTEGER, TokenValue.UNRESERVED, loc, new BigDecimal(buffer).longValue(), buffer);
+			return makeToken(TokenType.INTEGER, TokenValue.UNRESERVED, loc, Long.valueOf(buffer, numberBase).longValue(), buffer);
 		}
 	}
 
@@ -486,6 +539,15 @@ public class Scanner {
 		}
 	}
 
+	private void skipSpace()
+	{
+		char ch = 0;
+
+		do {
+			ch = getNextChar();
+		} while (isSpace(ch));
+	}
+
 	public Token getCurrentToken()
 	{
 		return token;
@@ -499,9 +561,25 @@ public class Scanner {
 		while (state != State.TERMINAL) {
 			switch (state) {
 			case START:
+				
+				/*
 				getNextChar();
+				do {
+					while (isSpace(currentChar)) {
+						getNextChar();
+					}
 
-				preprocess();
+					handleLineComment();
+					handleBlockComment();
+				} while (isSpace(currentChar));
+				*/
+				
+				
+				skipSpace();
+				
+				
+				
+				
 				if (eof) {
 					state = State.END_OF_FILE;
 		        	} else {
@@ -512,10 +590,18 @@ public class Scanner {
 		        			state = State.NUMBER;
 		        		} else if (currentChar == '\'') {
 		        			state = State.STRING;
+		        		} else if (currentChar == '{'
+		        				|| (currentChar == '(' && peekChar() == '*')) {
+		        			state = State.COMMENT;
 		        		} else {
 		        			state = State.OPERATION;
 		        		}
 		        	}
+				break;
+
+			case COMMENT:
+				token = handleComment();
+				state = State.TERMINAL;
 				break;
 
 			case END_OF_FILE:
@@ -546,11 +632,12 @@ public class Scanner {
 			default:
 				errorToken("Match token state error.");
 				errorFlag = true;
+				token = null;
 				state = State.TERMINAL;
 				break;
 			}
 		}
-		
+
 		return token;
 	}
 
